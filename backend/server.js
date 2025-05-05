@@ -176,18 +176,26 @@ app.put('/pedidos/actualizar-estado', async (req, res) => {
 // Eliminar un pedido por parte del cliente
 app.delete('/pedidos/:id', async (req, res) => {
   const { id } = req.params;
-  const { usuarioId } = req.body;
+  const { usuarioId } = req.body || {};
 
-  if (!ObjectId.isValid(id) || !usuarioId || !ObjectId.isValid(usuarioId)) {
-    return res.status(400).json({ error: 'Datos inválidos' });
+  if (!ObjectId.isValid(id)) {
+    return res.status(400).json({ error: 'ID de pedido inválido' });
   }
 
   try {
-    // Solo permite eliminar si el pedido pertenece al usuario
-    const result = await db.collection('Pedidos').deleteOne({
-      _id: new ObjectId(id),
-      Usuario_id: new ObjectId(usuarioId)
-    });
+    let filtro;
+    if (usuarioId) {
+      // Elimina solo si el pedido pertenece al usuario (cliente)
+      if (!ObjectId.isValid(usuarioId)) {
+        return res.status(400).json({ error: 'ID de usuario inválido' });
+      }
+      filtro = { _id: new ObjectId(id), Usuario_id: new ObjectId(usuarioId) };
+    } else {
+      // Elimina solo por ID (admin)
+      filtro = { _id: new ObjectId(id) };
+    }
+
+    const result = await db.collection('Pedidos').deleteOne(filtro);
 
     if (result.deletedCount === 0) {
       return res.status(404).json({ error: 'Pedido no encontrado o no autorizado' });

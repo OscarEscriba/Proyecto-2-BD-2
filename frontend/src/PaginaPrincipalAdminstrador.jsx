@@ -101,6 +101,25 @@ const PaginaPrincipalAdministrador = () => {
     });
   };
 
+  const eliminarPedidoAdmin = async (pedidoId) => {
+    if (!window.confirm('¿Seguro que deseas eliminar este pedido?')) return;
+    try {
+      const response = await fetch(`http://localhost:4000/pedidos/${pedidoId}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await response.json();
+      if (response.ok) {
+        alert(data.mensaje);
+        fetchPedidos(currentPage); // Refresca la lista
+      } else {
+        alert(data.error || 'No se pudo eliminar el pedido');
+      }
+    } catch (error) {
+      alert('Error al eliminar el pedido');
+    }
+  };
+
   return (
     <div style={styles.container}>
       <header style={styles.header}>
@@ -235,6 +254,20 @@ const PaginaPrincipalAdministrador = () => {
                       </p>
                     )}
                   </div>
+                  <button
+                    onClick={() => eliminarPedidoAdmin(pedido._id)}
+                    style={{
+                      marginTop: '10px',
+                      background: '#e74c3c',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '5px',
+                      padding: '8px 16px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    🗑️ Eliminar
+                  </button>
                 </div>
               );
             })}
