@@ -6,6 +6,7 @@ import Principal from './Principal';
 import EstadoPedidos from './EstadoPedidos';
 import CrearPedidos from './CrearPedidos';
 import PaginaPrincipalAdministrador from './PaginaPrincipalAdminstrador';
+
 function App() {
   const isAdmin = () => {
     const token = localStorage.getItem('token');
@@ -18,7 +19,8 @@ function App() {
     <Router>
       <Routes>
         <Route path="/Login" element={<Login />} />
-        <Route path="/" element={<Register />} />
+        <Route path="/Registro" element={<Register />} />
+        <Route path="/" element={<Login />} />
         <Route path="/PaginaPrincipal" element={<Principal />} />
         <Route path="/EstadoPedidos" element={<EstadoPedidos />} />
         <Route path="/CrearPedidos" element={<CrearPedidos />} />
