@@ -70,33 +70,51 @@ const EstadoPedidos = () => {
               No se encontraron pedidos con estos filtros
             </div>
           ) : (
-            pedidos.map((pedido, index) => (
-              <div key={pedido._id} className="pedido-card">
-                <div className="pedido-header">
-                  <h3>Pedido #{index + 1}</h3>
-                  <span className={`estado ${pedido.Estado}`}>
-                    {pedido.Estado}
-                  </span>
-                </div>
+            pedidos.map((pedido, index) => {
+              // Compatibilidad de campos
+              const productos = pedido.productos || pedido.Productos;
+              const tipoEntrega = pedido.tipo_entrega || pedido.Tipo_entrega;
+              const total = pedido.total !== undefined ? pedido.total : pedido.Total;
+              const estado = pedido.Estado || pedido.estado;
+              const fecha = pedido.Fecha || pedido.fecha;
 
-                <div className="pedido-info">
-                  <p className="fecha">🗓️ {formatearFecha(pedido.Fecha)}</p>
-                  <p className="total">💰 Total: Q{pedido.Total?.toFixed(2)}</p>
-                  <p className="entrega">🚚 Entrega: {pedido.Tipo_entrega}</p>
-                </div>
+              return (
+                <div key={pedido._id} className="pedido-card">
+                  <div className="pedido-header">
+                    <h3>Pedido #{index + 1}</h3>
+                    <span className={`estado ${estado}`}>
+                      {estado}
+                    </span>
+                  </div>
 
-                <div className="productos-lista">
-                  <h4>Productos:</h4>
-                  <ul>
-                    {pedido.Productos?.map((producto, i) => (
-                      <li key={i}>
-                        {producto.nombre} x{producto.cantidad}
-                      </li>
-                    ))}
-                  </ul>
+                  <div className="pedido-info">
+                    <p className="fecha">🗓️ {formatearFecha(fecha)}</p>
+                    <p className="total">💰 Total: Q{Number(total)?.toFixed(2)}</p>
+                    <p className="entrega">🚚 Entrega: {tipoEntrega}</p>
+                  </div>
+
+                  <div className="productos-lista">
+                    <h4>Productos:</h4>
+                    <ul>
+                      {Array.isArray(productos) && productos.length > 0 ? (
+                        productos.map((producto, i) => (
+                          <li key={i}>
+                            {(producto.nombre || producto.Nombre) || 'Producto'} x{producto.cantidad || 1}
+                            {(producto.precio !== undefined || producto.Precio !== undefined) && (
+                              <span>
+                                (Q{Number(producto.precio !== undefined ? producto.precio : producto.Precio).toFixed(2)})
+                              </span>
+                            )}
+                          </li>
+                        ))
+                      ) : (
+                        <li style={{ color: '#95a5a6' }}>No hay productos en este pedido</li>
+                      )}
+                    </ul>
+                  </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       )}

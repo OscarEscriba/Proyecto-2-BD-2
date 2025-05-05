@@ -162,70 +162,82 @@ const PaginaPrincipalAdministrador = () => {
           <div style={styles.cargando}>Cargando pedidos...</div>
         ) : (
           <div style={styles.lista}>
-            {pedidos.map(pedido => (
-              <div 
-                key={pedido._id} 
-                style={{
-                  ...styles.pedido,
-                  borderColor: selectedPedidos.has(pedido._id) ? '#3498db' : '#ddd'
-                }}
-              >
-                <div style={styles.pedidoHeader}>
-                  <input
-                    type="checkbox"
-                    checked={selectedPedidos.has(pedido._id)}
-                    onChange={() => togglePedidoSelection(pedido._id)}
-                    style={styles.checkbox}
-                  />
-                  <div style={styles.pedidoInfo}>
-                    <h3>📦 Pedido #{pedido._id.toString().slice(-6).toUpperCase()}</h3>
-                    <span style={{
-                      ...styles.estado,
-                      backgroundColor: 
-                        pedido.Estado === 'completado' ? '#2ecc71' :
-                        pedido.Estado === 'en_proceso' ? '#f1c40f' : '#e74c3c'
-                    }}>
-                      {pedido.Estado}
-                    </span>
+            {pedidos.map(pedido => {
+              // Compatibilidad de campos
+              const productos = pedido.productos || pedido.Productos;
+              const tipoEntrega = pedido.tipo_entrega || pedido.Tipo_entrega;
+              const total = pedido.total !== undefined ? pedido.total : pedido.Total;
+              const estado = pedido.Estado || pedido.estado;
+              const usuario = pedido.Usuario_id || pedido.usuario_id;
+              const fecha = pedido.Fecha || pedido.fecha;
+
+              return (
+                <div 
+                  key={pedido._id} 
+                  style={{
+                    ...styles.pedido,
+                    borderColor: selectedPedidos.has(pedido._id) ? '#3498db' : '#ddd'
+                  }}
+                >
+                  <div style={styles.pedidoHeader}>
+                    <input
+                      type="checkbox"
+                      checked={selectedPedidos.has(pedido._id)}
+                      onChange={() => togglePedidoSelection(pedido._id)}
+                      style={styles.checkbox}
+                    />
+                    <div style={styles.pedidoInfo}>
+                      <h3>📦 Pedido #{pedido._id.toString().slice(-6).toUpperCase()}</h3>
+                      <span style={{
+                        ...styles.estado,
+                        backgroundColor: 
+                          estado === 'completado' ? '#2ecc71' :
+                          estado === 'en_proceso' || estado === 'en preparación' ? '#f1c40f' :
+                          estado === 'pendiente' ? '#e74c3c' :
+                          '#7f8c8d'
+                      }}>
+                        {estado}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div style={styles.detalles}>
+                    <p>👤 Usuario: {usuario?.toString().slice(-6)}</p>
+                    <p>📅 Fecha: {formatearFecha(fecha)}</p>
+                    <p>💰 Total: Q{Number(total)?.toFixed(2)}</p>
+                    <p>🚚 Entrega: {tipoEntrega}</p>
+                  </div>
+
+                  <div style={styles.productos}>
+                    <h4>Productos:</h4>
+                    {Array.isArray(productos) ? (
+                      productos.length > 0 ? (
+                        <ul>
+                          {productos.map((producto, i) => (
+                            <li key={i}>
+                              {(producto.nombre || producto.Nombre) || 'Producto'} x{producto.cantidad || 1}
+                              {(producto.precio !== undefined || producto.Precio !== undefined) && (
+                                <span style={styles.precioProducto}>
+                                  (Q{Number(producto.precio !== undefined ? producto.precio : producto.Precio).toFixed(2)})
+                                </span>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p style={{ color: '#95a5a6', marginTop: '8px' }}>
+                          🛒 No hay productos en este pedido
+                        </p>
+                      )
+                    ) : (
+                      <p style={{ color: '#e74c3c', marginTop: '8px' }}>
+                        ⚠️ Información de productos no disponible
+                      </p>
+                    )}
                   </div>
                 </div>
-
-                <div style={styles.detalles}>
-                  <p>👤 Usuario: {pedido.Usuario_id.toString().slice(-6)}</p>
-                  <p>📅 Fecha: {formatearFecha(pedido.Fecha)}</p>
-                  <p>💰 Total: Q{pedido.Total?.toFixed(2)}</p>
-                  <p>🚚 Entrega: {pedido.Tipo_entrega}</p>
-                </div>
-
-                <div style={styles.productos}>
-                    <h4>Productos:</h4>
-                    {pedido.Productos && Array.isArray(pedido.Productos) ? (
-                        pedido.Productos.length > 0 ? (
-                        <ul>
-                            {pedido.Productos.map((producto, i) => (
-                            <li key={i}>
-                                {producto.nombre} x{producto.cantidad}
-                                {producto.precio && (
-                                <span style={styles.precioProducto}>
-                                    (Q{producto.precio.toFixed(2)})
-                                </span>
-                                )}
-                            </li>
-                            ))}
-                        </ul>
-                        ) : (
-                        <p style={{ color: '#95a5a6', marginTop: '8px' }}>
-                            🛒 No hay productos en este pedido
-                        </p>
-                        )
-                    ) : (
-                        <p style={{ color: '#e74c3c', marginTop: '8px' }}>
-                        ⚠️ Información de productos no disponible
-                        </p>
-                    )}
-                    </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </main>
