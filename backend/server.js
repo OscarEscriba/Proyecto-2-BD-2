@@ -173,7 +173,31 @@ app.put('/pedidos/actualizar-estado', async (req, res) => {
   }
 });
 
+// Eliminar un pedido por parte del cliente
+app.delete('/pedidos/:id', async (req, res) => {
+  const { id } = req.params;
+  const { usuarioId } = req.body;
 
+  if (!ObjectId.isValid(id) || !usuarioId || !ObjectId.isValid(usuarioId)) {
+    return res.status(400).json({ error: 'Datos inválidos' });
+  }
+
+  try {
+    // Solo permite eliminar si el pedido pertenece al usuario
+    const result = await db.collection('Pedidos').deleteOne({
+      _id: new ObjectId(id),
+      Usuario_id: new ObjectId(usuarioId)
+    });
+
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ error: 'Pedido no encontrado o no autorizado' });
+    }
+
+    res.json({ mensaje: 'Pedido eliminado correctamente' });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al eliminar el pedido' });
+  }
+});
 
 // PARA CLIENTE 
 
