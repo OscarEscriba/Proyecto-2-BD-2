@@ -150,6 +150,18 @@ const Principal = () => {
                     >
                     🛒 Crear nuevos tickets
                 </Link>
+                <Link 
+                    to="/Resenas"
+                    style={{
+                        textDecoration: 'none',
+                        color: '#f39c12',
+                        padding: '8px 15px',
+                        borderRadius: '5px',
+                        backgroundColor: '#f8f9fa',
+                    }}
+                    >
+                    ⭐ Ver reseñas
+                </Link>
             </nav>
             </div>
       {/* Controles de Filtrado */}

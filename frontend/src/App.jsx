@@ -6,6 +6,7 @@ import Principal from './Principal';
 import EstadoPedidos from './EstadoPedidos';
 import CrearPedidos from './CrearPedidos';
 import PaginaPrincipalAdministrador from './PaginaPrincipalAdminstrador';
+import Resenas from './Resenas';
 
 function App() {
   const isAdmin = () => {
@@ -25,6 +26,7 @@ function App() {
         <Route path="/EstadoPedidos" element={<EstadoPedidos />} />
         <Route path="/CrearPedidos" element={<CrearPedidos />} />
         <Route path="/PaginaPrincipalAdministrador" element={<PaginaPrincipalAdministrador />} />
+        <Route path="/Resenas" element={<Resenas />} />
       </Routes>
     </Router>
   );
