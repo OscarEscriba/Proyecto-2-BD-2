@@ -50,6 +50,24 @@ const EstadoPedidos = () => {
     }
   };
 
+  const eliminarTodosPedidos = async () => {
+    if (!window.confirm('¿Seguro que deseas eliminar TODOS tus pedidos?')) return;
+    try {
+      const response = await fetch(`http://localhost:4000/pedidos/usuario/${currentUser.id}`, {
+        method: 'DELETE'
+      });
+      const data = await response.json();
+      if (response.ok) {
+        alert(data.mensaje);
+        obtenerPedidos(); // Refresca la lista
+      } else {
+        alert(data.error || 'No se pudieron eliminar los pedidos');
+      }
+    } catch (error) {
+      alert('Error al eliminar los pedidos');
+    }
+  };
+
   useEffect(() => {
     if(currentUser?.id) obtenerPedidos();
   }, [estadoFiltro]);
@@ -80,6 +98,23 @@ const EstadoPedidos = () => {
           <option value="completado">Completados</option>
         </select>
       </div>
+
+      {pedidos.length > 0 && (
+        <button
+          onClick={eliminarTodosPedidos}
+          style={{
+            marginBottom: '20px',
+            background: '#e74c3c',
+            color: 'white',
+            border: 'none',
+            borderRadius: '5px',
+            padding: '8px 16px',
+            cursor: 'pointer'
+          }}
+        >
+          🗑️ Eliminar todos mis pedidos
+        </button>
+      )}
 
       {cargando ? (
         <div className="cargando">Cargando pedidos...</div>

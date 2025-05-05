@@ -207,6 +207,20 @@ app.delete('/pedidos/:id', async (req, res) => {
   }
 });
 
+// Eliminar todos los pedidos de un usuario
+app.delete('/pedidos/usuario/:usuarioId', async (req, res) => {
+  const { usuarioId } = req.params;
+  if (!ObjectId.isValid(usuarioId)) {
+    return res.status(400).json({ error: 'ID de usuario inválido' });
+  }
+  try {
+    const result = await db.collection('Pedidos').deleteMany({ Usuario_id: new ObjectId(usuarioId) });
+    res.json({ mensaje: `${result.deletedCount} pedidos eliminados` });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al eliminar los pedidos' });
+  }
+});
+
 // PARA CLIENTE 
 
 // ENDPOINTS PARA MOSTRAR
