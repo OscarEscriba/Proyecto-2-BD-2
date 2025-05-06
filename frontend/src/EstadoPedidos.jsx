@@ -11,9 +11,14 @@ const EstadoPedidos = () => {
     try {
       setCargando(true);
       
-      let url = `http://localhost:4000/pedidos?usuarioId=${currentUser?.id}`;
+      if (!currentUser?.id) {
+        console.error('No hay usuario logueado o falta ID');
+        return;
+      }
+      
+      let url = `http://localhost:4000/pedidos?usuarioId=${currentUser.id}`;
       if(estadoFiltro) url += `&estado=${estadoFiltro}`;
-
+      
       const response = await fetch(url);
       const data = await response.json();
       
@@ -127,11 +132,43 @@ const EstadoPedidos = () => {
           ) : (
             pedidos.map((pedido, index) => {
               // Compatibilidad de campos
-              const productos = pedido.productos || pedido.Productos;
+              
+              // Verificar formato de Productos y convertir si es necesario
+              let productos = [];
+              
+              if (pedido.productos || pedido.Productos) {
+                const productosRaw = pedido.productos || pedido.Productos;
+                
+                // Verificar si los productos son strings (IDs) o objetos
+                if (Array.isArray(productosRaw)) {
+                  if (productosRaw.length > 0) {
+                    // Si el primer elemento es un string, son IDs
+                    if (typeof productosRaw[0] === 'string') {
+                      productos = productosRaw.map((id, idx) => ({
+                        _id: id,
+                        Nombre: `Producto #${idx + 1}`,
+                        Precio: 0,
+                        cantidad: 1
+                      }));
+                    } else {
+                      // Son objetos normales
+                      productos = productosRaw;
+                    }
+                  } else {
+                    productos = [];
+                  }
+                } else {
+                  // No es un array
+                  productos = [];
+                }
+              } else {
+                productos = [];
+              }
+              
               const tipoEntrega = pedido.tipo_entrega || pedido.Tipo_entrega;
-              const total = pedido.total !== undefined ? pedido.total : pedido.Total;
-              const estado = pedido.Estado || pedido.estado;
-              const fecha = pedido.Fecha || pedido.fecha;
+              const total = pedido.total !== undefined ? pedido.total : (pedido.Total !== undefined ? pedido.Total : 0);
+              const estado = pedido.Estado || pedido.estado || 'desconocido';
+              const fecha = pedido.Fecha || pedido.fecha || new Date().toISOString();
 
               return (
                 <div key={pedido._id} className="pedido-card">
@@ -146,6 +183,7 @@ const EstadoPedidos = () => {
                     <p className="fecha">🗓️ {formatearFecha(fecha)}</p>
                     <p className="total">💰 Total: Q{Number(total)?.toFixed(2)}</p>
                     <p className="entrega">🚚 Entrega: {tipoEntrega}</p>
+                    <p className="id">🔑 ID: {pedido._id.toString().substring(0, 8)}...</p>
                   </div>
                   
                   {/* Mostrar ubicación si es pedido a domicilio - Compatible con diferentes formatos */}
@@ -179,7 +217,8 @@ const EstadoPedidos = () => {
                       {Array.isArray(productos) && productos.length > 0 ? (
                         productos.map((producto, i) => (
                           <li key={i}>
-                            {(producto.nombre || producto.Nombre) || 'Producto'} x{producto.cantidad || 1}
+                            {(producto.nombre || producto.Nombre) || `Producto ID: ${producto._id?.substring(0, 8) || i}`}
+                            {producto.cantidad ? ` x${producto.cantidad}` : ''}
                             {(producto.precio !== undefined || producto.Precio !== undefined) && (
                               <span>
                                 (Q{Number(producto.precio !== undefined ? producto.precio : producto.Precio).toFixed(2)})
@@ -188,7 +227,7 @@ const EstadoPedidos = () => {
                           </li>
                         ))
                       ) : (
-                        <li style={{ color: '#95a5a6' }}>No hay productos en este pedido</li>
+                        <li style={{ color: '#95a5a6' }}>No hay productos en este pedido o formato no reconocido</li>
                       )}
                     </ul>
                   </div>

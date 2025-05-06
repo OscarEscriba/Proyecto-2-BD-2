@@ -36,10 +36,34 @@ const CrearPedidos = () => {
 
   const handleProductosChange = (index, productosSeleccionados) => {
     const nuevosTickets = [...tickets];
-    nuevosTickets[index].productos = productosSeleccionados;
+    
+    // Obtener los IDs de los productos ya seleccionados
+    const productosExistentesIds = nuevosTickets[index].productos.map(p => p._id);
+    
+    // Filtrar los productos seleccionados para mantener solo los nuevos
+    const productosNuevos = productosSeleccionados.filter(
+      producto => !productosExistentesIds.includes(producto._id)
+    );
+    
+    // Combinar productos existentes con los nuevos seleccionados
+    nuevosTickets[index].productos = [...nuevosTickets[index].productos, ...productosNuevos];
     
     // Calcular total
-    nuevosTickets[index].total = productosSeleccionados.reduce(
+    nuevosTickets[index].total = nuevosTickets[index].productos.reduce(
+      (sum, producto) => sum + producto.Precio, 0
+    );
+    
+    setTickets(nuevosTickets);
+  };
+
+  const handleEliminarProducto = (ticketIndex, productoId) => {
+    const nuevosTickets = [...tickets];
+    nuevosTickets[ticketIndex].productos = nuevosTickets[ticketIndex].productos.filter(
+      p => p._id !== productoId
+    );
+    
+    // Recalcular el total
+    nuevosTickets[ticketIndex].total = nuevosTickets[ticketIndex].productos.reduce(
       (sum, producto) => sum + producto.Precio, 0
     );
     
@@ -67,15 +91,38 @@ const CrearPedidos = () => {
 
     const currentUser = JSON.parse(localStorage.getItem('currentUser'));
     
-    // Preparar los datos a enviar
+    if (!currentUser || !currentUser.id) {
+      alert('Debes iniciar sesión para crear pedidos');
+      return;
+    }
+    
+    // Preparar los datos para enviar
+    const pedidosFormateados = tickets.map(ticket => {
+      // Formatear los productos para asegurar que solo enviamos los datos necesarios
+      const productosFormateados = ticket.productos.map(producto => {
+        // Solo incluir propiedades relevantes del producto y asegurar nombres de propiedades consistentes
+        return {
+          _id: producto._id,
+          nombre: producto.Nombre,
+          precio: producto.Precio,
+          cantidad: 1 // Valor por defecto
+        };
+      });
+      
+      // Crear una copia del ticket con los datos formateados
+      return {
+        productos: productosFormateados,
+        total: ticket.total,
+        tipo_entrega: ticket.tipo_entrega,
+        ubicacion: ticket.ubicacion
+      };
+    });
+    
     const datosEnvio = {
       usuarioId: currentUser.id,
-      tickets: tickets
+      tickets: pedidosFormateados
     };
     
-    // Depuración: Imprimir los datos que vamos a enviar
-    console.log('📦 Datos de pedidos a enviar:', JSON.stringify(datosEnvio, null, 2));
-
     try {
       const response = await fetch('http://localhost:4000/pedidos/multiples', {
         method: 'POST',
@@ -83,16 +130,26 @@ const CrearPedidos = () => {
         body: JSON.stringify(datosEnvio)
       });
 
-      const data = await response.json();
+      const responseText = await response.text();
       
-      if (response.ok) {
-        alert(`${data.mensaje}\nIDs: ${data.ids.join(', ')}`);
-        navigate('/EstadoPedidos'); // Redirigir a la página de estado de pedidos
-      } else {
+      // Procesar la respuesta
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (e) {
+        throw new Error('Respuesta no válida del servidor: ' + responseText);
+      }
+      
+      if (!response.ok) {
         throw new Error(data.error || 'Error al crear pedidos');
       }
+      
+      alert(`${data.mensaje}\nIDs: ${data.ids.join(', ')}\nGuardados en colección: ${data.coleccion || 'Pedidos'}`);
+      navigate('/EstadoPedidos'); // Redirigir a la página de estado de pedidos
+      
     } catch (error) {
-      alert(error.message);
+      console.error('Error al crear pedidos:', error);
+      alert('Error al crear pedidos: ' + error.message);
     }
   };
 
@@ -142,7 +199,7 @@ const CrearPedidos = () => {
                   marginTop: '5px',
                   height: '150px'
                 }}
-                value={ticket.productos.map(p => p._id)}
+                value={[]} // No mantenemos selección visual en el select
                 onChange={(e) => handleProductosChange(
                   index,
                   Array.from(e.target.selectedOptions)
@@ -155,6 +212,51 @@ const CrearPedidos = () => {
                   </option>
                 ))}
               </select>
+              
+              {/* Lista de productos seleccionados */}
+              {ticket.productos.length > 0 && (
+                <div style={{ 
+                  marginTop: '10px', 
+                  border: '1px solid #ddd',
+                  borderRadius: '5px',
+                  padding: '10px',
+                  backgroundColor: '#f9f9f9'
+                }}>
+                  <h4 style={{ marginTop: '0', marginBottom: '10px' }}>Productos seleccionados:</h4>
+                  <ul style={{ 
+                    listStyleType: 'none', 
+                    padding: '0', 
+                    margin: '0' 
+                  }}>
+                    {ticket.productos.map((producto, prodIndex) => (
+                      <li key={prodIndex} style={{ 
+                        display: 'flex', 
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: '5px 0',
+                        borderBottom: prodIndex < ticket.productos.length - 1 ? '1px solid #eee' : 'none'
+                      }}>
+                        <span>{producto.Nombre} - Q{producto.Precio.toFixed(2)}</span>
+                        <button 
+                          type="button"
+                          onClick={() => handleEliminarProducto(index, producto._id)}
+                          style={{
+                            background: '#e74c3c',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '3px',
+                            padding: '3px 8px',
+                            cursor: 'pointer',
+                            fontSize: '0.8em'
+                          }}
+                        >
+                          ✕
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
 
             <div style={{ marginBottom: '15px' }}>

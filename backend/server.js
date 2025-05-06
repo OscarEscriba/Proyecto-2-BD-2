@@ -100,22 +100,89 @@ app.get('/pedidos/admin', async (req, res) => {
   const skip = (page - 1) * limit;
 
   try {
-    const [pedidos, total] = await Promise.all([
-      db.collection('Pedidos')
-        .find()
-        .sort({ Fecha: -1 })
-        .skip(skip)
-        .limit(limit)
-        .toArray(),
+    // Verificar conexión a MongoDB
+    if (!db) {
+      console.error('❌ ERROR CRÍTICO: No hay conexión a la base de datos');
+      await client.connect();
+      db = client.db('Proyecto2');
+    }
+    
+    // Obtener todas las colecciones donde pueden estar los pedidos
+    const colecciones = await db.listCollections().toArray();
+    const nombreColecciones = colecciones.map(col => col.name);
+    
+    // Colecciones donde buscar pedidos (primero las más probables)
+    const coleccionesPedidos = ['Pedidos', 'pedidos', 'PEDIDOS', 'orders', 'Pedidos2'];
+    
+    // Añadir otras colecciones que puedan existir
+    for (const col of nombreColecciones) {
+      if (!coleccionesPedidos.includes(col) && 
+          col !== 'Usuario' && 
+          col !== 'Resenas' && 
+          col !== 'system.views') {
+        coleccionesPedidos.push(col);
+      }
+    }
+    
+    // Buscar pedidos en todas las colecciones
+    let todosPedidos = [];
+    let totalPedidos = 0;
+    
+    for (const coleccion of coleccionesPedidos) {
+      if (!nombreColecciones.includes(coleccion)) {
+        continue;
+      }
       
-      db.collection('Pedidos').countDocuments()
-    ]);
+      try {
+        // Obtener el total de pedidos en esta colección
+        const countPedidos = await db.collection(coleccion).countDocuments();
+        totalPedidos += countPedidos;
+        
+        // Si hay pedidos, obtener los pedidos para esta página
+        if (countPedidos > 0) {
+          const pedidosEnColeccion = await db.collection(coleccion)
+            .find()
+            .sort({ Fecha: -1 })
+            .skip(skip)
+            .limit(limit)
+            .toArray();
+          
+          // Formatear y añadir información de la colección
+          const formateados = pedidosEnColeccion.map(p => ({
+            ...p,
+            _id: p._id.toString(),
+            Usuario_id: typeof p.Usuario_id === 'object' ? p.Usuario_id.toString() : p.Usuario_id,
+            _coleccion: coleccion
+          }));
+          
+          todosPedidos = [...todosPedidos, ...formateados];
+        }
+      } catch (err) {
+        console.error(`Error al buscar en colección "${coleccion}":`, err.message);
+      }
+    }
+    
+    // Ordenar todos los pedidos por fecha
+    todosPedidos.sort((a, b) => {
+      const fechaA = a.Fecha || a.fecha || a.date || '';
+      const fechaB = b.Fecha || b.fecha || b.date || '';
+      return new Date(fechaB) - new Date(fechaA); // Más recientes primero
+    });
+    
+    // Limitar al número especificado para esta página
+    todosPedidos = todosPedidos.slice(0, limit);
+    
+    // Eliminar el campo _coleccion antes de enviar
+    todosPedidos = todosPedidos.map(p => {
+      const { _coleccion, ...resto } = p;
+      return resto;
+    });
 
     res.json({
-      pedidos,
+      pedidos: todosPedidos,
       currentPage: page,
-      totalPages: Math.ceil(total / limit),
-      totalPedidos: total
+      totalPages: Math.ceil(totalPedidos / limit),
+      totalPedidos: totalPedidos
     });
 
   } catch (err) {
@@ -133,13 +200,41 @@ app.delete('/pedidos/multiples', async (req, res) => {
   }
 
   try {
+    // Verificar conexión a MongoDB
+    if (!db) {
+      console.error('❌ ERROR CRÍTICO: No hay conexión a la base de datos');
+      await client.connect();
+      db = client.db('Proyecto2');
+    }
+    
     const objectIds = ids.map(id => new ObjectId(id));
-    const result = await db.collection('Pedidos').deleteMany({
-      _id: { $in: objectIds }
-    });
+    
+    // Obtener todas las colecciones
+    const colecciones = await db.listCollections().toArray();
+    const nombreColecciones = colecciones.map(col => col.name);
+    
+    // Colecciones donde buscar pedidos
+    const coleccionesPedidos = ['Pedidos', 'pedidos', 'PEDIDOS'].filter(
+      col => nombreColecciones.includes(col)
+    );
+    
+    let totalEliminados = 0;
+    
+    // Intentar eliminar de todas las colecciones posibles
+    for (const coleccion of coleccionesPedidos) {
+      try {
+        const result = await db.collection(coleccion).deleteMany({
+          _id: { $in: objectIds }
+        });
+        
+        totalEliminados += result.deletedCount;
+      } catch (err) {
+        console.error(`Error al eliminar de colección "${coleccion}":`, err.message);
+      }
+    }
     
     res.json({
-      mensaje: `${result.deletedCount} pedidos eliminados`
+      mensaje: `${totalEliminados} pedidos eliminados`
     });
     
   } catch (err) {
@@ -157,14 +252,41 @@ app.put('/pedidos/actualizar-estado', async (req, res) => {
   }
 
   try {
+    // Verificar conexión a MongoDB
+    if (!db) {
+      console.error('❌ ERROR CRÍTICO: No hay conexión a la base de datos');
+      await client.connect();
+      db = client.db('Proyecto2');
+    }
+    
     const objectIds = ids.map(id => new ObjectId(id));
-    const result = await db.collection('Pedidos').updateMany(
-      { _id: { $in: objectIds } },
-      { $set: { Estado: nuevoEstado } }
+    
+    // Obtener todas las colecciones
+    const colecciones = await db.listCollections().toArray();
+    const nombreColecciones = colecciones.map(col => col.name);
+    
+    // Colecciones donde buscar pedidos
+    const coleccionesPedidos = ['Pedidos', 'pedidos', 'PEDIDOS', 'orders', 'Pedidos2'].filter(
+      col => nombreColecciones.includes(col)
     );
     
+    let totalActualizados = 0;
+    
+    for (const coleccion of coleccionesPedidos) {
+      try {
+        const result = await db.collection(coleccion).updateMany(
+          { _id: { $in: objectIds } },
+          { $set: { Estado: nuevoEstado } }
+        );
+        
+        totalActualizados += result.modifiedCount;
+      } catch (err) {
+        console.error(`Error al actualizar en colección "${coleccion}":`, err.message);
+      }
+    }
+    
     res.json({
-      mensaje: `${result.modifiedCount} pedidos actualizados`
+      mensaje: `${totalActualizados} pedidos actualizados`
     });
     
   } catch (err) {
@@ -183,26 +305,65 @@ app.delete('/pedidos/:id', async (req, res) => {
   }
 
   try {
-    let filtro;
-    if (usuarioId) {
-      // Elimina solo si el pedido pertenece al usuario (cliente)
-      if (!ObjectId.isValid(usuarioId)) {
-        return res.status(400).json({ error: 'ID de usuario inválido' });
+    // Verificar conexión a MongoDB
+    if (!db) {
+      console.error('❌ ERROR CRÍTICO: No hay conexión a la base de datos');
+      await client.connect();
+      db = client.db('Proyecto2');
+    }
+    
+    // Obtener todas las colecciones
+    const colecciones = await db.listCollections().toArray();
+    const nombreColecciones = colecciones.map(col => col.name);
+    
+    // Colecciones donde buscar pedidos
+    const coleccionesPedidos = ['Pedidos', 'pedidos', 'PEDIDOS', 'orders', 'Pedidos2'].filter(
+      col => nombreColecciones.includes(col)
+    );
+    
+    const pedidoId = new ObjectId(id);
+    let totalEliminados = 0;
+    
+    for (const coleccion of coleccionesPedidos) {
+      try {
+        let filtro;
+        if (usuarioId) {
+          // Elimina solo si el pedido pertenece al usuario (cliente)
+          if (!ObjectId.isValid(usuarioId)) {
+            return res.status(400).json({ error: 'ID de usuario inválido' });
+          }
+          filtro = { 
+            _id: pedidoId,
+            $or: [
+              { Usuario_id: new ObjectId(usuarioId) },
+              { Usuario_id: usuarioId },
+              { usuario_id: new ObjectId(usuarioId) },
+              { usuario_id: usuarioId }
+            ]
+          };
+        } else {
+          // Elimina solo por ID (admin)
+          filtro = { _id: pedidoId };
+        }
+
+        const result = await db.collection(coleccion).deleteOne(filtro);
+        totalEliminados += result.deletedCount;
+        
+        if (result.deletedCount > 0) {
+          break; // Si se elimina de una colección, no es necesario seguir
+        }
+      } catch (err) {
+        console.error(`Error al eliminar de colección "${coleccion}":`, err.message);
       }
-      filtro = { _id: new ObjectId(id), Usuario_id: new ObjectId(usuarioId) };
-    } else {
-      // Elimina solo por ID (admin)
-      filtro = { _id: new ObjectId(id) };
     }
 
-    const result = await db.collection('Pedidos').deleteOne(filtro);
-
-    if (result.deletedCount === 0) {
+    if (totalEliminados === 0) {
       return res.status(404).json({ error: 'Pedido no encontrado o no autorizado' });
     }
 
     res.json({ mensaje: 'Pedido eliminado correctamente' });
   } catch (err) {
+    console.error('Error al eliminar pedido:', err);
     res.status(500).json({ error: 'Error al eliminar el pedido' });
   }
 });
@@ -214,9 +375,44 @@ app.delete('/pedidos/usuario/:usuarioId', async (req, res) => {
     return res.status(400).json({ error: 'ID de usuario inválido' });
   }
   try {
-    const result = await db.collection('Pedidos').deleteMany({ Usuario_id: new ObjectId(usuarioId) });
-    res.json({ mensaje: `${result.deletedCount} pedidos eliminados` });
+    // Verificar conexión a MongoDB
+    if (!db) {
+      console.error('❌ ERROR CRÍTICO: No hay conexión a la base de datos');
+      await client.connect();
+      db = client.db('Proyecto2');
+    }
+    
+    // Obtener todas las colecciones
+    const colecciones = await db.listCollections().toArray();
+    const nombreColecciones = colecciones.map(col => col.name);
+    
+    // Colecciones donde buscar pedidos
+    const coleccionesPedidos = ['Pedidos', 'pedidos', 'PEDIDOS', 'orders', 'Pedidos2'].filter(
+      col => nombreColecciones.includes(col)
+    );
+    
+    let totalEliminados = 0;
+    
+    for (const coleccion of coleccionesPedidos) {
+      try {
+        const result = await db.collection(coleccion).deleteMany({
+          $or: [
+            { Usuario_id: new ObjectId(usuarioId) },
+            { Usuario_id: usuarioId },
+            { usuario_id: new ObjectId(usuarioId) },
+            { usuario_id: usuarioId }
+          ]
+        });
+        
+        totalEliminados += result.deletedCount;
+      } catch (err) {
+        console.error(`Error al eliminar de colección "${coleccion}":`, err.message);
+      }
+    }
+    
+    res.json({ mensaje: `${totalEliminados} pedidos eliminados` });
   } catch (err) {
+    console.error('Error al eliminar pedidos:', err);
     res.status(500).json({ error: 'Error al eliminar los pedidos' });
   }
 });
@@ -255,64 +451,243 @@ app.get('/productos', async (req, res) => {
   }
 });
 
+// Verificar colección Pedidos
+async function verificarColeccionPedidos() {
+  try {
+    // Verificar si la colección existe
+    const collections = await db.listCollections({name: 'Pedidos'}).toArray();
+    if (collections.length === 0) {
+      await db.createCollection('Pedidos');
+      return false; // Indica que la colección no existía
+    }
+    return true; // Indica que la colección ya existía
+  } catch (err) {
+    console.error('❌ Error al verificar/crear colección Pedidos:', err);
+    return false;
+  }
+}
+
 // Obtener pedidos del usuario con filtro por estado
 app.get('/pedidos', async (req, res) => {
   const { usuarioId, estado } = req.query;
 
-  if (!usuarioId || !ObjectId.isValid(usuarioId)) {
+  if (!usuarioId) {
+    return res.status(400).json({ error: 'ID de usuario no proporcionado' });
+  }
+
+  if (!ObjectId.isValid(usuarioId)) {
     return res.status(400).json({ error: 'ID de usuario inválido' });
   }
 
   try {
-    const filtro = { 
-      Usuario_id: new ObjectId(usuarioId), // Campo corregido
-      ...(estado && { Estado: estado })
-    };
-
-    const pedidos = await db.collection('Pedidos')
-      .find(filtro)
-      .sort({ Fecha: -1 })
-      // No excluimos el campo de ubicación
-      // Para mostrar las direcciones de entrega
-      .toArray();
-
-    res.json(pedidos);
+    // Verificar conexión a MongoDB
+    if (!db) {
+      console.error('❌ ERROR CRÍTICO: No hay conexión a la base de datos');
+      await client.connect();  // Intentar conectar de nuevo
+      db = client.db('Proyecto2');
+    }
+    
+    // Verificar y crear la colección si no existe
+    const coleccionExiste = await verificarColeccionPedidos();
+    
+    // Obtener todas las colecciones donde pueden estar los pedidos
+    const colecciones = await db.listCollections().toArray();
+    const nombreColecciones = colecciones.map(col => col.name);
+    
+    // Colecciones donde buscar pedidos (primero las más probables)
+    const coleccionesPedidos = ['Pedidos', 'pedidos', 'PEDIDOS', 'orders', 'Pedidos2'];
+    
+    // Añadir otras colecciones que puedan existir
+    for (const col of nombreColecciones) {
+      if (!coleccionesPedidos.includes(col) && 
+          col !== 'Usuario' && 
+          col !== 'Resenas' && 
+          col !== 'system.views') {
+        coleccionesPedidos.push(col);
+      }
+    }
+    
+    // Buscar en todas las colecciones
+    let todosPedidos = [];
+    
+    for (const coleccion of coleccionesPedidos) {
+      if (!nombreColecciones.includes(coleccion)) {
+        continue;
+      }
+      
+      try {
+        // Buscar con ObjectId
+        const filtroObjectId = {
+          Usuario_id: new ObjectId(usuarioId),
+          ...(estado && { Estado: estado })
+        };
+        
+        const pedidosObjectId = await db.collection(coleccion)
+          .find(filtroObjectId)
+          .sort({ Fecha: -1 })
+          .toArray();
+        
+        if (pedidosObjectId.length > 0) {
+          // Formatear y añadir a la lista total
+          const formateados = pedidosObjectId.map(p => ({
+            ...p,
+            _id: p._id.toString(),
+            Usuario_id: typeof p.Usuario_id === 'object' ? p.Usuario_id.toString() : p.Usuario_id,
+            _coleccion: coleccion // Añadir info de la colección
+          }));
+          
+          todosPedidos = [...todosPedidos, ...formateados];
+          continue; // Seguir con la siguiente colección
+        }
+        
+        // Si no encontramos con ObjectId, probar como string
+        const filtroString = {
+          Usuario_id: usuarioId,
+          ...(estado && { Estado: estado })
+        };
+        
+        const pedidosString = await db.collection(coleccion)
+          .find(filtroString)
+          .sort({ Fecha: -1 })
+          .toArray();
+        
+        if (pedidosString.length > 0) {
+          // Formatear y añadir a la lista total
+          const formateados = pedidosString.map(p => ({
+            ...p,
+            _id: p._id.toString(),
+            Usuario_id: typeof p.Usuario_id === 'object' ? p.Usuario_id.toString() : p.Usuario_id,
+            _coleccion: coleccion // Añadir info de la colección
+          }));
+          
+          todosPedidos = [...todosPedidos, ...formateados];
+          continue; // Seguir con la siguiente colección
+        }
+        
+        // Último intento: buscar con patrones flexibles
+        const filtroFlexible = {
+          $or: [
+            { Usuario_id: new ObjectId(usuarioId) },
+            { Usuario_id: usuarioId },
+            { usuario_id: new ObjectId(usuarioId) },
+            { usuario_id: usuarioId },
+            { user_id: new ObjectId(usuarioId) },
+            { user_id: usuarioId }
+          ]
+        };
+        
+        if (estado) {
+          filtroFlexible.$and = [{
+            $or: [
+              { Estado: estado },
+              { estado: estado },
+              { status: estado }
+            ]
+          }];
+        }
+        
+        const pedidosFlexibles = await db.collection(coleccion)
+          .find(filtroFlexible)
+          .sort({ Fecha: -1 })
+          .toArray();
+        
+        if (pedidosFlexibles.length > 0) {
+          // Formatear y añadir a la lista total
+          const formateados = pedidosFlexibles.map(p => ({
+            ...p,
+            _id: p._id.toString(),
+            Usuario_id: typeof p.Usuario_id === 'object' ? 
+                       p.Usuario_id.toString() : 
+                       (p.Usuario_id || p.usuario_id || p.user_id || usuarioId),
+            _coleccion: coleccion // Añadir info de la colección
+          }));
+          
+          todosPedidos = [...todosPedidos, ...formateados];
+        }
+        
+      } catch (err) {
+        console.error(`Error al buscar en colección "${coleccion}":`, err.message);
+      }
+    }
+    
+    // Ordenar todos los pedidos por fecha
+    todosPedidos.sort((a, b) => {
+      const fechaA = a.Fecha || a.fecha || a.date || '';
+      const fechaB = b.Fecha || b.fecha || b.date || '';
+      return new Date(fechaB) - new Date(fechaA); // Más recientes primero
+    });
+    
+    // Eliminar el campo _coleccion antes de enviar los datos
+    todosPedidos = todosPedidos.map(p => {
+      const { _coleccion, ...resto } = p;
+      return resto;
+    });
+    
+    res.json(todosPedidos);
     
   } catch (err) {
     console.error('Error al obtener pedidos:', err);
-    res.status(500).json({ error: 'Error al obtener pedidos' });
+    res.status(500).json({ error: 'Error al obtener pedidos: ' + err.message });
   }
 });
 
 
-// Crear múltiples pedidos (tickets) LISTO
+// Crear múltiples pedidos (tickets)
 app.post('/pedidos/multiples', async (req, res) => {
   const { usuarioId, tickets } = req.body; // Recibimos ID directamente
 
-   // Validar ID
-   if (!usuarioId || !ObjectId.isValid(usuarioId)) {
+  // Validar ID
+  if (!usuarioId) {
+    return res.status(400).json({ error: 'ID de usuario no proporcionado' });
+  }
+   
+  if (!ObjectId.isValid(usuarioId)) {
     return res.status(400).json({ error: 'ID de usuario inválido' });
   }
 
-
   try {
     // Validar estructura
-    if (!Array.isArray(tickets)) {
+    if (!tickets || !Array.isArray(tickets)) {
       return res.status(400).json({ error: 'Se requiere un array de pedidos' });
     }
-
+    
+    // Verificar conexión a MongoDB
+    if (!db) {
+      console.error('❌ ERROR CRÍTICO: No hay conexión a la base de datos');
+      await client.connect();  // Intentar conectar de nuevo
+      db = client.db('Proyecto2');
+    }
+    
+    // Verificar y crear la colección si no existe
+    await verificarColeccionPedidos();
+    
     const pedidosConMetadata = tickets.map(ticket => {
+      // Asegurarnos de que los productos tengan toda la información necesaria
+      const productosFormateados = Array.isArray(ticket.productos) 
+        ? ticket.productos.map(producto => {
+            // Garantizar que cada producto tenga los campos necesarios
+            return {
+              _id: producto._id || String(Math.random()).substring(2, 10),
+              nombre: producto.nombre || producto.Nombre || 'Producto sin nombre',
+              precio: producto.precio || producto.Precio || 0,
+              cantidad: producto.cantidad || 1
+            };
+          })
+        : [];
+      
       // Estructura base del pedido
       const pedido = {
-        ...ticket,
         Usuario_id: new ObjectId(usuarioId), // ID de usuario
-        Estado: 'pendiente',
-        Fecha: new Date().toISOString()
+        productos: productosFormateados, // Guardar con la p minúscula para consistencia
+        total: ticket.total || 0,
+        estado: "pendiente", // Guardar con la e minúscula para consistencia
+        fecha: new Date().toISOString(), // Guardar con la f minúscula para consistencia
+        tipo_entrega: ticket.tipo_entrega
       };
       
       // Si es entrega a domicilio, añadimos la información de ubicación
       if (ticket.tipo_entrega === 'domicilio' && ticket.ubicacion) {
-        pedido.ubicacion_entrega = {
+        pedido.ubicacion = {
           coordenadas: ticket.ubicacion.coordenadas,
           direccion: ticket.ubicacion.direccion
         };
@@ -320,17 +695,51 @@ app.post('/pedidos/multiples', async (req, res) => {
       
       return pedido;
     });
-
-    const result = await db.collection('Pedidos').insertMany(pedidosConMetadata);
+    
+    // Intentar diferentes nombres de colección para la inserción
+    let result = null;
+    let coleccionUsada = 'Pedidos';
+    const opcionesEscritura = { writeConcern: { w: 1, j: true, wtimeout: 5000 } };
+    
+    try {
+      result = await db.collection('Pedidos').insertMany(pedidosConMetadata, opcionesEscritura);
+    } catch (errPedidos) {
+      console.error('❌ Error al insertar en "Pedidos":', errPedidos);
+      
+      // Intentar con "pedidos" (minúsculas)
+      try {
+        result = await db.collection('pedidos').insertMany(pedidosConMetadata, opcionesEscritura);
+        coleccionUsada = 'pedidos';
+      } catch (errMinusculas) {
+        console.error('❌ Error al insertar en "pedidos":', errMinusculas);
+        
+        // Último intento: crear colección "Pedidos2" y usar esa
+        try {
+          await db.createCollection('Pedidos2');
+          result = await db.collection('Pedidos2').insertMany(pedidosConMetadata, opcionesEscritura);
+          coleccionUsada = 'Pedidos2';
+        } catch (errUltimo) {
+          console.error('❌ Todos los intentos fallaron:', errUltimo);
+          throw new Error('No se pudo insertar en ninguna colección: ' + errUltimo.message);
+        }
+      }
+    }
+    
+    if (!result || !result.acknowledged) {
+      throw new Error('La operación no fue reconocida por MongoDB');
+    }
+    
+    const idsInsertados = Object.values(result.insertedIds).map(id => id.toString());
     
     res.json({
       mensaje: `${result.insertedCount} pedidos creados exitosamente`,
-      ids: Object.values(result.insertedIds)
+      ids: idsInsertados,
+      coleccion: coleccionUsada // Devolver qué colección se usó
     });
 
   } catch (err) {
     console.error('Error creando pedidos:', err);
-    res.status(500).json({ error: 'Error al crear pedidos' });
+    res.status(500).json({ error: 'Error al crear pedidos: ' + err.message });
   }
 });
 
