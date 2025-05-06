@@ -147,6 +147,21 @@ const EstadoPedidos = () => {
                     <p className="total">💰 Total: Q{Number(total)?.toFixed(2)}</p>
                     <p className="entrega">🚚 Entrega: {tipoEntrega}</p>
                   </div>
+                  
+                  {/* Mostrar ubicación si es pedido a domicilio */}
+                  {(tipoEntrega === 'domicilio' && pedido.ubicacion_entrega) && (
+                    <div className="ubicacion-entrega" style={{ 
+                      marginTop: '5px', 
+                      marginBottom: '15px',
+                      padding: '10px',
+                      backgroundColor: '#e8f4fd',
+                      borderRadius: '5px'
+                    }}>
+                      <p style={{ margin: '0' }}>
+                        <strong>📍 Dirección de entrega:</strong> {pedido.ubicacion_entrega.direccion}
+                      </p>
+                    </div>
+                  )}
 
                   <div className="productos-lista">
                     <h4>Productos:</h4>

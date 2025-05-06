@@ -1,6 +1,7 @@
 // CLIENTE CREAR PEDIDOS MULTIPLES
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import MapaUbicacion from './components/MapaUbicacion';
 
 // Datos de ejemplo - reemplazar con tus productos reales
 const productosEjemplo = [
@@ -10,7 +11,12 @@ const productosEjemplo = [
 ];
 
 const CrearPedidos = () => {
-  const [tickets, setTickets] = useState([{ productos: [], tipo_entrega: 'domicilio', total: 0 }]);
+  const [tickets, setTickets] = useState([{ 
+    productos: [], 
+    tipo_entrega: 'domicilio', 
+    total: 0,
+    ubicacion: null 
+  }]);
   const navigate = useNavigate();
   const currentUser = JSON.parse(localStorage.getItem('currentUser'));
 
@@ -18,7 +24,8 @@ const CrearPedidos = () => {
     setTickets([...tickets, {
       productos: [],
       tipo_entrega: 'domicilio',
-      total: 0
+      total: 0,
+      ubicacion: null
     }]);
   };
 
@@ -39,15 +46,32 @@ const CrearPedidos = () => {
     setTickets(nuevosTickets);
   };
 
+  const handleUbicacionChange = (index, ubicacion) => {
+    const nuevosTickets = [...tickets];
+    nuevosTickets[index].ubicacion = ubicacion;
+    setTickets(nuevosTickets);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Validar que todos los tickets con entrega a domicilio tengan ubicación
+    const ticketSinUbicacion = tickets.findIndex(ticket => 
+      ticket.tipo_entrega === 'domicilio' && !ticket.ubicacion
+    );
+    
+    if (ticketSinUbicacion !== -1) {
+      alert(`Por favor, selecciona una ubicación para el Ticket #${ticketSinUbicacion + 1}`);
+      return;
+    }
+
     const currentUser = JSON.parse(localStorage.getItem('currentUser'));
     // Agrega esto justo después de obtener currentUser
-  console.log('🚀 Usuario actual:', {
-    id: currentUser?.id,
-    email: currentUser?.email,
-    tipo: currentUser?.tipo
-  }); 
+    console.log('🚀 Usuario actual:', {
+      id: currentUser?.id,
+      email: currentUser?.email,
+      tipo: currentUser?.tipo
+    }); 
 
     try {
       const response = await fetch('http://localhost:4000/pedidos/multiples', {
@@ -148,6 +172,25 @@ const CrearPedidos = () => {
                 <option value="recoger">Recoger en local</option>
               </select>
             </div>
+
+            {/* Componente de Geolocalización */}
+            {ticket.tipo_entrega === 'domicilio' && (
+              <div style={{ marginBottom: '15px' }}>
+                <MapaUbicacion 
+                  onChange={(ubicacion) => handleUbicacionChange(index, ubicacion)}
+                />
+                {ticket.ubicacion && (
+                  <div style={{ 
+                    marginTop: '10px', 
+                    padding: '10px', 
+                    backgroundColor: '#e1f5fe', 
+                    borderRadius: '5px' 
+                  }}>
+                    <p><strong>📍 Dirección de entrega:</strong> {ticket.ubicacion.direccion}</p>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div>
               <strong>Total: </strong> Q{ticket.total.toFixed(2)}

@@ -300,12 +300,25 @@ app.post('/pedidos/multiples', async (req, res) => {
       return res.status(400).json({ error: 'Se requiere un array de pedidos' });
     }
 
-    const pedidosConMetadata = tickets.map(ticket => ({
-      ...ticket,
-      Usuario_id: new ObjectId(usuarioId), // ID de usuario
-      Estado: 'pendiente',
-      Fecha: new Date().toISOString()
-    }));
+    const pedidosConMetadata = tickets.map(ticket => {
+      // Estructura base del pedido
+      const pedido = {
+        ...ticket,
+        Usuario_id: new ObjectId(usuarioId), // ID de usuario
+        Estado: 'pendiente',
+        Fecha: new Date().toISOString()
+      };
+      
+      // Si es entrega a domicilio, añadimos la información de ubicación
+      if (ticket.tipo_entrega === 'domicilio' && ticket.ubicacion) {
+        pedido.ubicacion_entrega = {
+          coordenadas: ticket.ubicacion.coordenadas,
+          direccion: ticket.ubicacion.direccion
+        };
+      }
+      
+      return pedido;
+    });
 
     const result = await db.collection('Pedidos').insertMany(pedidosConMetadata);
     
