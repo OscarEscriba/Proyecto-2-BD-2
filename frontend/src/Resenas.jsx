@@ -13,6 +13,7 @@ const Resenas = () => {
   });
   const [cargando, setCargando] = useState(true);
   const [enviando, setEnviando] = useState(false);
+  const [error, setError] = useState(null);
   
   const currentUser = JSON.parse(localStorage.getItem('currentUser'));
 
@@ -22,6 +23,8 @@ const Resenas = () => {
   // Obtener reseñas
   const obtenerResenas = async () => {
     setCargando(true);
+    setError(null);
+    
     try {
       let ordenParam = '';
       switch(ordenamiento) {
@@ -30,24 +33,42 @@ const Resenas = () => {
         default: ordenParam = ''; // recientes
       }
 
-      // Simulamos obtener las reseñas del servidor
-      // En un caso real, esto sería un fetch a tu API
-      const data = localStorage.getItem('resenas');
-      let resenas = data ? JSON.parse(data) : [];
+      // Petición a la API para obtener reseñas
+      const response = await fetch(`http://localhost:4000/resenas/restaurante?orden=${ordenParam}`);
       
-      // Ordenar según el parámetro
-      if (ordenParam === 'calificacion_desc') {
-        resenas.sort((a, b) => b.calificacion - a.calificacion);
-      } else if (ordenParam === 'calificacion_asc') {
-        resenas.sort((a, b) => a.calificacion - b.calificacion);
-      } else {
-        // Ordenar por fecha desc (más recientes primero)
-        resenas.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+      if (!response.ok) {
+        throw new Error(`Error ${response.status}: ${response.statusText}`);
       }
       
-      setResenas(resenas);
+      const data = await response.json();
+      setResenas(data);
+      
     } catch (error) {
-      console.error('Error:', error);
+      console.error('Error al cargar reseñas:', error);
+      setError('No se pudieron cargar las reseñas. Por favor, intenta de nuevo más tarde.');
+      
+      // Como respaldo, cargar desde localStorage
+      const localData = localStorage.getItem('resenas');
+      if (localData) {
+        try {
+          let resenasLocal = JSON.parse(localData);
+          
+          // Ordenar según el parámetro
+          if (ordenamiento === 'mejores') {
+            resenasLocal.sort((a, b) => b.calificacion - a.calificacion);
+          } else if (ordenamiento === 'peores') {
+            resenasLocal.sort((a, b) => a.calificacion - b.calificacion);
+          } else {
+            // Ordenar por fecha desc (más recientes primero)
+            resenasLocal.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+          }
+          
+          setResenas(resenasLocal);
+          setError('Usando datos locales (no sincronizados con el servidor)');
+        } catch (e) {
+          setResenas([]);
+        }
+      }
     } finally {
       setCargando(false);
     }
@@ -62,29 +83,48 @@ const Resenas = () => {
     }
 
     setEnviando(true);
+    setError(null);
+    
+    // Log para depuración
+    console.log('Usuario actual:', currentUser);
+    
     try {
-      // Crear la nueva reseña
-      const nuevaResenaObj = {
-        _id: Date.now().toString(), // Generamos un ID único basado en timestamp
+      // Preparar datos para enviar
+      const datosResena = {
         usuario_id: currentUser.id,
         calificacion: parseInt(nuevaResena.calificacion),
-        comentario: nuevaResena.comentario,
-        fecha: new Date().toISOString(),
-        usuario: {
-          nombre: currentUser.email.split('@')[0] // Usar parte del email como nombre
-        }
+        comentario: nuevaResena.comentario
       };
-
-      // Obtener las reseñas actuales
-      const dataExistente = localStorage.getItem('resenas');
-      const resenasExistentes = dataExistente ? JSON.parse(dataExistente) : [];
       
-      // Añadir la nueva reseña
-      resenasExistentes.push(nuevaResenaObj);
+      console.log('Datos a enviar:', datosResena);
       
-      // Guardar en localStorage
-      localStorage.setItem('resenas', JSON.stringify(resenasExistentes));
-
+      // Enviar reseña a la API
+      const response = await fetch('http://localhost:4000/resenas/restaurante', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(datosResena)
+      });
+      
+      console.log('Estado de respuesta:', response.status);
+      
+      // Obtener el cuerpo de la respuesta como texto para depuración
+      const responseText = await response.text();
+      console.log('Respuesta del servidor:', responseText);
+      
+      // Convertir la respuesta a JSON para procesamiento
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (e) {
+        throw new Error('Respuesta no válida del servidor: ' + responseText);
+      }
+      
+      if (!response.ok) {
+        throw new Error(data.error || `Error ${response.status}`);
+      }
+      
       // Limpiar formulario
       setNuevaResena({ calificacion: 5, comentario: '' });
       
@@ -93,8 +133,40 @@ const Resenas = () => {
       
       alert('¡Reseña publicada con éxito!');
     } catch (error) {
-      console.error('Error:', error);
-      alert('Error al publicar la reseña');
+      console.error('Error al publicar reseña:', error);
+      setError(`Error al publicar la reseña: ${error.message}`);
+      
+      // Como respaldo, guardar en localStorage
+      try {
+        // Crear la nueva reseña localmente
+        const nuevaResenaObj = {
+          _id: Date.now().toString(),
+          usuario_id: currentUser.id,
+          calificacion: parseInt(nuevaResena.calificacion),
+          comentario: nuevaResena.comentario,
+          fecha: new Date().toISOString(),
+          usuario: {
+            nombre: currentUser.email.split('@')[0]
+          }
+        };
+
+        // Obtener las reseñas actuales
+        const dataExistente = localStorage.getItem('resenas');
+        const resenasExistentes = dataExistente ? JSON.parse(dataExistente) : [];
+        
+        // Añadir la nueva reseña
+        resenasExistentes.push(nuevaResenaObj);
+        
+        // Guardar en localStorage
+        localStorage.setItem('resenas', JSON.stringify(resenasExistentes));
+        
+        // Recargar reseñas desde localStorage
+        obtenerResenas();
+        
+        alert('Reseña guardada localmente (no sincronizada con el servidor). Error: ' + error.message);
+      } catch (localError) {
+        alert('No se pudo guardar la reseña. Por favor, intenta de nuevo.');
+      }
     } finally {
       setEnviando(false);
     }
@@ -105,24 +177,55 @@ const Resenas = () => {
     if (!currentUser) return;
     if (!window.confirm('¿Estás seguro de eliminar esta reseña?')) return;
 
+    setCargando(true);
+    setError(null);
+    
     try {
-      // Obtener las reseñas actuales
-      const dataExistente = localStorage.getItem('resenas');
-      let resenasExistentes = dataExistente ? JSON.parse(dataExistente) : [];
+      // Eliminar reseña mediante la API
+      const response = await fetch(`http://localhost:4000/resenas/${resenaId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          usuario_id: currentUser.id
+        })
+      });
       
-      // Filtrar la reseña a eliminar
-      resenasExistentes = resenasExistentes.filter(r => r._id !== resenaId);
-      
-      // Guardar en localStorage
-      localStorage.setItem('resenas', JSON.stringify(resenasExistentes));
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Error ${response.status}`);
+      }
       
       // Recargar reseñas
       obtenerResenas();
       
       alert('Reseña eliminada correctamente');
     } catch (error) {
-      console.error('Error:', error);
-      alert('Error al eliminar la reseña');
+      console.error('Error al eliminar reseña:', error);
+      setError(`Error al eliminar la reseña: ${error.message}`);
+      
+      // Como respaldo, intentar eliminar de localStorage
+      try {
+        // Obtener las reseñas actuales
+        const dataExistente = localStorage.getItem('resenas');
+        let resenasExistentes = dataExistente ? JSON.parse(dataExistente) : [];
+        
+        // Filtrar la reseña a eliminar
+        resenasExistentes = resenasExistentes.filter(r => r._id !== resenaId);
+        
+        // Guardar en localStorage
+        localStorage.setItem('resenas', JSON.stringify(resenasExistentes));
+        
+        // Recargar reseñas desde localStorage
+        obtenerResenas();
+        
+        alert('Reseña eliminada de almacenamiento local');
+      } catch (localError) {
+        alert('No se pudo eliminar la reseña. Por favor, intenta de nuevo.');
+      }
+    } finally {
+      setCargando(false);
     }
   };
 
@@ -181,6 +284,12 @@ const Resenas = () => {
           </span>
         </div>
       </div>
+
+      {error && (
+        <div style={styles.errorMessage}>
+          {error}
+        </div>
+      )}
 
       {/* Formulario para enviar una nueva reseña */}
       <div style={styles.formContainer}>
@@ -270,7 +379,7 @@ const Resenas = () => {
               </div>
               
               {/* Botón eliminar (solo visible para el autor) */}
-              {currentUser && resena.usuario_id === currentUser.id && (
+              {currentUser && resena.usuario_id.toString() === currentUser.id && (
                 <button 
                   onClick={() => eliminarResena(resena._id)}
                   style={styles.deleteButton}
@@ -425,10 +534,12 @@ const styles = {
   },
   errorMessage: {
     textAlign: 'center',
-    padding: '30px',
+    padding: '15px',
     color: '#e74c3c',
-    backgroundColor: '#ffe6e6',
-    borderRadius: '8px'
+    backgroundColor: '#fff4f4',
+    borderRadius: '8px',
+    marginBottom: '20px',
+    border: '1px solid #e74c3c'
   },
   emptyMessage: {
     textAlign: 'center',

@@ -15,6 +15,7 @@ const ResenaProducto = () => {
   });
   const [cargando, setCargando] = useState(true);
   const [enviando, setEnviando] = useState(false);
+  const [error, setError] = useState(null);
   
   const currentUser = JSON.parse(localStorage.getItem('currentUser'));
 
@@ -49,28 +50,62 @@ const ResenaProducto = () => {
   }, [productoId, productoInfo]);
 
   // Obtener reseñas
-  const obtenerResenas = () => {
-    // Obtener todas las reseñas del localStorage
-    const todasLasResenas = localStorage.getItem('resenasProductos') 
-      ? JSON.parse(localStorage.getItem('resenasProductos')) 
-      : {};
+  const obtenerResenas = async () => {
+    setCargando(true);
+    setError(null);
     
-    // Obtener reseñas específicas para este producto
-    const resenasProducto = todasLasResenas[productoId] || [];
-    
-    // Ordenar según el criterio seleccionado
-    let resenasOrdenadas = [...resenasProducto];
-    
-    if (ordenamiento === 'mejores') {
-      resenasOrdenadas.sort((a, b) => a.calificacion - b.calificacion);
-    } else if (ordenamiento === 'peores') {
-      resenasOrdenadas.sort((a, b) => b.calificacion - a.calificacion);
-    } else {
-      // Por defecto, ordenar por fecha (más recientes primero)
-      resenasOrdenadas.sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+    try {
+      let ordenParam = '';
+      switch(ordenamiento) {
+        case 'mejores': ordenParam = 'calificacion_desc'; break;
+        case 'peores': ordenParam = 'calificacion_asc'; break;
+        default: ordenParam = ''; // recientes
+      }
+      
+      // Petición a la API para obtener reseñas del producto
+      const response = await fetch(`http://localhost:4000/resenas/producto/${productoId}?orden=${ordenParam}`);
+      
+      if (!response.ok) {
+        throw new Error(`Error ${response.status}: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      setResenas(data);
+      
+    } catch (error) {
+      console.error('Error al cargar reseñas:', error);
+      setError('No se pudieron cargar las reseñas. Por favor, intenta de nuevo más tarde.');
+      
+      // Como respaldo, cargar desde localStorage
+      try {
+        // Obtener todas las reseñas del localStorage
+        const todasLasResenas = localStorage.getItem('resenasProductos') 
+          ? JSON.parse(localStorage.getItem('resenasProductos')) 
+          : {};
+        
+        // Obtener reseñas específicas para este producto
+        const resenasProducto = todasLasResenas[productoId] || [];
+        
+        // Ordenar según el criterio seleccionado
+        let resenasOrdenadas = [...resenasProducto];
+        
+        if (ordenamiento === 'mejores') {
+          resenasOrdenadas.sort((a, b) => b.calificacion - a.calificacion);
+        } else if (ordenamiento === 'peores') {
+          resenasOrdenadas.sort((a, b) => a.calificacion - b.calificacion);
+        } else {
+          // Por defecto, ordenar por fecha (más recientes primero)
+          resenasOrdenadas.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+        }
+        
+        setResenas(resenasOrdenadas);
+        setError('Usando datos locales (no sincronizados con el servidor)');
+      } catch (e) {
+        setResenas([]);
+      }
+    } finally {
+      setCargando(false);
     }
-    
-    setResenas(resenasOrdenadas);
   };
 
   // Enviar una nueva reseña
@@ -82,36 +117,30 @@ const ResenaProducto = () => {
     }
 
     setEnviando(true);
+    setError(null);
+    
     try {
-      // Crear la nueva reseña
-      const nuevaResenaObj = {
-        _id: Date.now().toString(),
-        usuario_id: currentUser.id,
-        producto_id: productoId,
-        calificacion: parseInt(nuevaResena.calificacion),
-        comentario: nuevaResena.comentario,
-        fecha: new Date().toISOString(),
-        usuario: {
-          nombre: currentUser.email.split('@')[0]
-        }
-      };
-
-      // Obtener las reseñas existentes
-      const todasLasResenas = localStorage.getItem('resenasProductos') 
-        ? JSON.parse(localStorage.getItem('resenasProductos')) 
-        : {};
+      // Enviar reseña a la API
+      const response = await fetch('http://localhost:4000/resenas/producto', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          usuario_id: currentUser.id,
+          producto_id: productoId,
+          calificacion: parseInt(nuevaResena.calificacion),
+          comentario: nuevaResena.comentario
+        })
+      });
       
-      // Verificar si ya existen reseñas para este producto
-      if (!todasLasResenas[productoId]) {
-        todasLasResenas[productoId] = [];
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Error ${response.status}`);
       }
       
-      // Añadir la nueva reseña
-      todasLasResenas[productoId].push(nuevaResenaObj);
+      const data = await response.json();
       
-      // Guardar en localStorage
-      localStorage.setItem('resenasProductos', JSON.stringify(todasLasResenas));
-
       // Limpiar formulario
       setNuevaResena({ calificacion: 5, comentario: '' });
       
@@ -120,8 +149,47 @@ const ResenaProducto = () => {
       
       alert('¡Reseña publicada con éxito!');
     } catch (error) {
-      console.error('Error:', error);
-      alert('Error al publicar la reseña');
+      console.error('Error al publicar reseña:', error);
+      setError(`Error al publicar la reseña: ${error.message}`);
+      
+      // Como respaldo, guardar en localStorage
+      try {
+        // Crear la nueva reseña localmente
+        const nuevaResenaObj = {
+          _id: Date.now().toString(),
+          usuario_id: currentUser.id,
+          producto_id: productoId,
+          calificacion: parseInt(nuevaResena.calificacion),
+          comentario: nuevaResena.comentario,
+          fecha: new Date().toISOString(),
+          usuario: {
+            nombre: currentUser.email.split('@')[0]
+          }
+        };
+
+        // Obtener las reseñas existentes
+        const todasLasResenas = localStorage.getItem('resenasProductos') 
+          ? JSON.parse(localStorage.getItem('resenasProductos')) 
+          : {};
+        
+        // Verificar si ya existen reseñas para este producto
+        if (!todasLasResenas[productoId]) {
+          todasLasResenas[productoId] = [];
+        }
+        
+        // Añadir la nueva reseña
+        todasLasResenas[productoId].push(nuevaResenaObj);
+        
+        // Guardar en localStorage
+        localStorage.setItem('resenasProductos', JSON.stringify(todasLasResenas));
+
+        // Recargar reseñas desde localStorage
+        obtenerResenas();
+        
+        alert('Reseña guardada localmente (no sincronizada con el servidor)');
+      } catch (localError) {
+        alert('No se pudo guardar la reseña. Por favor, intenta de nuevo.');
+      }
     } finally {
       setEnviando(false);
     }
@@ -132,20 +200,24 @@ const ResenaProducto = () => {
     if (!currentUser) return;
     if (!window.confirm('¿Estás seguro de eliminar esta reseña?')) return;
 
+    setCargando(true);
+    setError(null);
+    
     try {
-      // Obtener todas las reseñas
-      const todasLasResenas = localStorage.getItem('resenasProductos') 
-        ? JSON.parse(localStorage.getItem('resenasProductos')) 
-        : {};
+      // Eliminar reseña mediante la API
+      const response = await fetch(`http://localhost:4000/resenas/${resenaId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          usuario_id: currentUser.id
+        })
+      });
       
-      // Filtrar la reseña a eliminar
-      if (todasLasResenas[productoId]) {
-        todasLasResenas[productoId] = todasLasResenas[productoId].filter(
-          r => r._id !== resenaId
-        );
-        
-        // Guardar en localStorage
-        localStorage.setItem('resenasProductos', JSON.stringify(todasLasResenas));
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Error ${response.status}`);
       }
       
       // Recargar reseñas
@@ -153,8 +225,35 @@ const ResenaProducto = () => {
       
       alert('Reseña eliminada correctamente');
     } catch (error) {
-      console.error('Error:', error);
-      alert('Error al eliminar la reseña');
+      console.error('Error al eliminar reseña:', error);
+      setError(`Error al eliminar la reseña: ${error.message}`);
+      
+      // Como respaldo, intentar eliminar de localStorage
+      try {
+        // Obtener todas las reseñas
+        const todasLasResenas = localStorage.getItem('resenasProductos') 
+          ? JSON.parse(localStorage.getItem('resenasProductos')) 
+          : {};
+        
+        // Filtrar la reseña a eliminar
+        if (todasLasResenas[productoId]) {
+          todasLasResenas[productoId] = todasLasResenas[productoId].filter(
+            r => r._id !== resenaId
+          );
+          
+          // Guardar en localStorage
+          localStorage.setItem('resenasProductos', JSON.stringify(todasLasResenas));
+        }
+        
+        // Recargar reseñas desde localStorage
+        obtenerResenas();
+        
+        alert('Reseña eliminada de almacenamiento local');
+      } catch (localError) {
+        alert('No se pudo eliminar la reseña. Por favor, intenta de nuevo.');
+      }
+    } finally {
+      setCargando(false);
     }
   };
 
@@ -186,7 +285,7 @@ const ResenaProducto = () => {
 
   const promedioCalificacion = calcularPromedio();
 
-  if (cargando) {
+  if (cargando && !producto) {
     return <div style={styles.loadingMessage}>Cargando información del producto...</div>;
   }
 
@@ -212,6 +311,12 @@ const ResenaProducto = () => {
           </span>
         </div>
       </div>
+
+      {error && (
+        <div style={styles.errorMessage}>
+          {error}
+        </div>
+      )}
 
       {/* Formulario para enviar una nueva reseña */}
       <div style={styles.formContainer}>
@@ -263,8 +368,6 @@ const ResenaProducto = () => {
           value={ordenamiento}
           onChange={(e) => {
             setOrdenamiento(e.target.value);
-            // Re-ordenar las reseñas cuando cambia el criterio
-            obtenerResenas();
           }}
           style={styles.filterSelect}
         >
@@ -276,7 +379,9 @@ const ResenaProducto = () => {
 
       {/* Lista de reseñas */}
       <div style={styles.resenasList}>
-        {resenas.length === 0 ? (
+        {cargando ? (
+          <div style={styles.loadingMessage}>Cargando reseñas...</div>
+        ) : resenas.length === 0 ? (
           <div style={styles.emptyMessage}>
             Aún no hay reseñas para este producto. ¡Sé el primero en dejar tu opinión!
           </div>
@@ -303,7 +408,7 @@ const ResenaProducto = () => {
               </div>
               
               {/* Botón eliminar (solo visible para el autor) */}
-              {currentUser && resena.usuario_id === currentUser.id && (
+              {currentUser && resena.usuario_id.toString() === currentUser.id && (
                 <button 
                   onClick={() => eliminarResena(resena._id)}
                   style={styles.deleteButton}
@@ -461,6 +566,15 @@ const styles = {
     textAlign: 'center',
     padding: '30px',
     color: '#7f8c8d'
+  },
+  errorMessage: {
+    textAlign: 'center',
+    padding: '15px',
+    color: '#e74c3c',
+    backgroundColor: '#fff4f4',
+    borderRadius: '8px',
+    marginBottom: '20px',
+    border: '1px solid #e74c3c'
   },
   emptyMessage: {
     textAlign: 'center',

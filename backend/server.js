@@ -334,6 +334,218 @@ app.post('/pedidos/multiples', async (req, res) => {
   }
 });
 
+// ===== ENDPOINTS PARA RESEÑAS =====
+
+// 1. Obtener todas las reseñas del restaurante
+app.get('/resenas/restaurante', async (req, res) => {
+  try {
+    const { orden } = req.query;
+    
+    let sortOption = { fecha: -1 }; // Por defecto, las más recientes primero
+    
+    if (orden === 'calificacion_desc') {
+      sortOption = { calificacion: -1 };
+    } else if (orden === 'calificacion_asc') {
+      sortOption = { calificacion: 1 };
+    }
+    
+    const resenas = await db.collection('Resenas')
+      .find({ tipo: 'restaurante' })
+      .sort(sortOption)
+      .toArray();
+      
+    res.json(resenas);
+  } catch (err) {
+    console.error('Error al obtener reseñas del restaurante:', err);
+    res.status(500).json({ error: 'Error al obtener reseñas' });
+  }
+});
+
+// 2. Crear una reseña para el restaurante
+app.post('/resenas/restaurante', async (req, res) => {
+  console.log('Recibida solicitud POST a /resenas/restaurante');
+  console.log('Cuerpo de la solicitud:', req.body);
+  
+  try {
+    const { usuario_id, calificacion, comentario } = req.body;
+    
+    // Verificar datos recibidos
+    console.log('ID de usuario recibido:', usuario_id);
+    console.log('Calificación recibida:', calificacion);
+    console.log('Comentario recibido:', comentario);
+    
+    if (!usuario_id) {
+      console.error('Error: ID de usuario no proporcionado');
+      return res.status(400).json({ error: 'ID de usuario no proporcionado' });
+    }
+    
+    if (!ObjectId.isValid(usuario_id)) {
+      console.error('Error: ID de usuario inválido');
+      return res.status(400).json({ error: 'ID de usuario inválido' });
+    }
+    
+    if (!calificacion || calificacion < 1 || calificacion > 5) {
+      console.error('Error: Calificación inválida');
+      return res.status(400).json({ error: 'Calificación inválida (debe ser 1-5)' });
+    }
+    
+    if (!comentario || comentario.trim() === '') {
+      console.error('Error: Comentario no proporcionado');
+      return res.status(400).json({ error: 'El comentario es requerido' });
+    }
+    
+    // Obtener información del usuario
+    console.log('Buscando usuario con ID:', usuario_id);
+    const usuario = await db.collection('Usuario').findOne({ _id: new ObjectId(usuario_id) });
+    if (!usuario) {
+      console.error('Error: Usuario no encontrado para ID:', usuario_id);
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+    
+    console.log('Usuario encontrado:', usuario.email);
+    
+    const nuevaResena = {
+      tipo: 'restaurante',
+      usuario_id: new ObjectId(usuario_id),
+      calificacion: parseInt(calificacion),
+      comentario,
+      fecha: new Date().toISOString(),
+      usuario: {
+        nombre: usuario.nombre || usuario.email.split('@')[0]
+      }
+    };
+    
+    console.log('Intentando insertar reseña:', nuevaResena);
+    const result = await db.collection('Resenas').insertOne(nuevaResena);
+    console.log('Reseña insertada con ID:', result.insertedId);
+    
+    res.status(201).json({
+      _id: result.insertedId,
+      mensaje: 'Reseña publicada con éxito'
+    });
+  } catch (err) {
+    console.error('Error al crear reseña del restaurante:', err);
+    res.status(500).json({ error: 'Error al crear reseña: ' + err.message });
+  }
+});
+
+// 3. Eliminar una reseña del restaurante
+app.delete('/resenas/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { usuario_id } = req.body;
+    
+    if (!id || !ObjectId.isValid(id)) {
+      return res.status(400).json({ error: 'ID de reseña inválido' });
+    }
+    
+    if (!usuario_id || !ObjectId.isValid(usuario_id)) {
+      return res.status(400).json({ error: 'ID de usuario inválido' });
+    }
+    
+    // Solo permitir que el autor de la reseña la elimine
+    const result = await db.collection('Resenas').deleteOne({
+      _id: new ObjectId(id),
+      usuario_id: new ObjectId(usuario_id)
+    });
+    
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ 
+        error: 'Reseña no encontrada o no tienes permiso para eliminarla' 
+      });
+    }
+    
+    res.json({ mensaje: 'Reseña eliminada correctamente' });
+  } catch (err) {
+    console.error('Error al eliminar reseña:', err);
+    res.status(500).json({ error: 'Error al eliminar reseña' });
+  }
+});
+
+// 4. Obtener reseñas de un producto específico
+app.get('/resenas/producto/:productoId', async (req, res) => {
+  try {
+    const { productoId } = req.params;
+    const { orden } = req.query;
+    
+    if (!productoId) {
+      return res.status(400).json({ error: 'ID de producto es requerido' });
+    }
+    
+    let sortOption = { fecha: -1 }; // Por defecto, las más recientes primero
+    
+    if (orden === 'calificacion_desc') {
+      sortOption = { calificacion: -1 };
+    } else if (orden === 'calificacion_asc') {
+      sortOption = { calificacion: 1 };
+    }
+    
+    const resenas = await db.collection('Resenas')
+      .find({ 
+        tipo: 'producto',
+        producto_id: productoId 
+      })
+      .sort(sortOption)
+      .toArray();
+      
+    res.json(resenas);
+  } catch (err) {
+    console.error('Error al obtener reseñas del producto:', err);
+    res.status(500).json({ error: 'Error al obtener reseñas' });
+  }
+});
+
+// 5. Crear una reseña para un producto
+app.post('/resenas/producto', async (req, res) => {
+  try {
+    const { usuario_id, producto_id, calificacion, comentario } = req.body;
+    
+    if (!usuario_id || !ObjectId.isValid(usuario_id)) {
+      return res.status(400).json({ error: 'ID de usuario inválido' });
+    }
+    
+    if (!producto_id) {
+      return res.status(400).json({ error: 'ID de producto es requerido' });
+    }
+    
+    if (!calificacion || calificacion < 1 || calificacion > 5) {
+      return res.status(400).json({ error: 'Calificación inválida (debe ser 1-5)' });
+    }
+    
+    if (!comentario || comentario.trim() === '') {
+      return res.status(400).json({ error: 'El comentario es requerido' });
+    }
+    
+    // Obtener información del usuario
+    const usuario = await db.collection('Usuario').findOne({ _id: new ObjectId(usuario_id) });
+    if (!usuario) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+    
+    const nuevaResena = {
+      tipo: 'producto',
+      usuario_id: new ObjectId(usuario_id),
+      producto_id,
+      calificacion: parseInt(calificacion),
+      comentario,
+      fecha: new Date().toISOString(),
+      usuario: {
+        nombre: usuario.nombre || usuario.email.split('@')[0]
+      }
+    };
+    
+    const result = await db.collection('Resenas').insertOne(nuevaResena);
+    
+    res.status(201).json({
+      _id: result.insertedId,
+      mensaje: 'Reseña publicada con éxito'
+    });
+  } catch (err) {
+    console.error('Error al crear reseña del producto:', err);
+    res.status(500).json({ error: 'Error al crear reseña' });
+  }
+});
+
 // Servidor corriendo
 app.listen(PORT, () => {
   console.log(`🚀 Servidor Express corriendo en http://localhost:${PORT}`);
