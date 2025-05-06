@@ -322,6 +322,36 @@ const Principal = () => {
                   </div>
                 </div>
               )}
+              
+              {/* Botón para ver reseñas del producto */}
+              <div style={{
+                marginTop: '15px',
+                display: 'flex',
+                justifyContent: 'center'
+              }}>
+                <Link
+                  to={`/ResenaProducto/${idx + 1}`}
+                  state={{ producto: {
+                    id: idx + 1,
+                    nombre: p.Nombre,
+                    precio: p.Precio,
+                    descripcion: p.Descripcion || '',
+                    categoria: p.Categoría || ''
+                  }}}
+                  style={{
+                    display: 'inline-block',
+                    padding: '8px 15px',
+                    backgroundColor: '#f39c12',
+                    color: 'white',
+                    textDecoration: 'none',
+                    borderRadius: '4px',
+                    fontSize: '0.9em',
+                    textAlign: 'center'
+                  }}
+                >
+                  ⭐ Ver opiniones de este producto
+                </Link>
+              </div>
             </div>
           ))}
         </div>
