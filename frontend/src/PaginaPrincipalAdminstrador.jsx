@@ -227,6 +227,31 @@ const PaginaPrincipalAdministrador = () => {
                     <p>🚚 Entrega: {tipoEntrega}</p>
                   </div>
 
+                  {/* Mostrar ubicación si es pedido a domicilio */}
+                  {(tipoEntrega === 'domicilio' || tipoEntrega === 'Domicilio') && (
+                    <div style={{
+                      marginTop: '5px',
+                      marginBottom: '15px',
+                      padding: '10px',
+                      backgroundColor: '#e8f4fd',
+                      borderRadius: '5px'
+                    }}>
+                      {pedido.ubicacion_entrega ? (
+                        <p style={{ margin: '0' }}>
+                          <strong>📍 Dirección de entrega:</strong> {pedido.ubicacion_entrega.direccion}
+                        </p>
+                      ) : pedido.ubicacion ? (
+                        <p style={{ margin: '0' }}>
+                          <strong>📍 Dirección de entrega:</strong> {pedido.ubicacion.direccion}
+                        </p>
+                      ) : (
+                        <p style={{ margin: '0', color: '#95a5a6' }}>
+                          <strong>📍 Dirección:</strong> No disponible
+                        </p>
+                      )}
+                    </div>
+                  )}
+
                   <div style={styles.productos}>
                     <h4>Productos:</h4>
                     {Array.isArray(productos) ? (

@@ -66,21 +66,21 @@ const CrearPedidos = () => {
     }
 
     const currentUser = JSON.parse(localStorage.getItem('currentUser'));
-    // Agrega esto justo después de obtener currentUser
-    console.log('🚀 Usuario actual:', {
-      id: currentUser?.id,
-      email: currentUser?.email,
-      tipo: currentUser?.tipo
-    }); 
+    
+    // Preparar los datos a enviar
+    const datosEnvio = {
+      usuarioId: currentUser.id,
+      tickets: tickets
+    };
+    
+    // Depuración: Imprimir los datos que vamos a enviar
+    console.log('📦 Datos de pedidos a enviar:', JSON.stringify(datosEnvio, null, 2));
 
     try {
       const response = await fetch('http://localhost:4000/pedidos/multiples', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            usuarioId: currentUser.id, // Enviamos ID directamente
-            tickets: tickets
-          })
+        body: JSON.stringify(datosEnvio)
       });
 
       const data = await response.json();

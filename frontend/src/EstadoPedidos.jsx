@@ -148,8 +148,8 @@ const EstadoPedidos = () => {
                     <p className="entrega">🚚 Entrega: {tipoEntrega}</p>
                   </div>
                   
-                  {/* Mostrar ubicación si es pedido a domicilio */}
-                  {(tipoEntrega === 'domicilio' && pedido.ubicacion_entrega) && (
+                  {/* Mostrar ubicación si es pedido a domicilio - Compatible con diferentes formatos */}
+                  {(tipoEntrega === 'domicilio' || tipoEntrega === 'Domicilio') && (
                     <div className="ubicacion-entrega" style={{ 
                       marginTop: '5px', 
                       marginBottom: '15px',
@@ -157,9 +157,19 @@ const EstadoPedidos = () => {
                       backgroundColor: '#e8f4fd',
                       borderRadius: '5px'
                     }}>
-                      <p style={{ margin: '0' }}>
-                        <strong>📍 Dirección de entrega:</strong> {pedido.ubicacion_entrega.direccion}
-                      </p>
+                      {pedido.ubicacion_entrega ? (
+                        <p style={{ margin: '0' }}>
+                          <strong>📍 Dirección de entrega:</strong> {pedido.ubicacion_entrega.direccion}
+                        </p>
+                      ) : pedido.ubicacion ? (
+                        <p style={{ margin: '0' }}>
+                          <strong>📍 Dirección de entrega:</strong> {pedido.ubicacion.direccion}
+                        </p>
+                      ) : (
+                        <p style={{ margin: '0', color: '#95a5a6' }}>
+                          <strong>📍 Dirección:</strong> No disponible
+                        </p>
+                      )}
                     </div>
                   )}
 

@@ -51,13 +51,18 @@ const MapaUbicacion = ({ posicionInicial, onChange }) => {
   // Confirmar ubicación
   const confirmarUbicacion = () => {
     setConfirmado(true);
-    onChange({
+    const datosUbicacion = {
       coordenadas: {
         latitud: posicion[0],
         longitud: posicion[1]
       },
       direccion
-    });
+    };
+    
+    // Depuración
+    console.log('🗺️ Ubicación confirmada:', datosUbicacion);
+    
+    onChange(datosUbicacion);
   };
 
   return (

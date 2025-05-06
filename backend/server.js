@@ -272,7 +272,8 @@ app.get('/pedidos', async (req, res) => {
     const pedidos = await db.collection('Pedidos')
       .find(filtro)
       .sort({ Fecha: -1 })
-      .project({ Usuario_id: 0 }) // Excluir campo de usuario
+      // No excluimos el campo de ubicación
+      // Para mostrar las direcciones de entrega
       .toArray();
 
     res.json(pedidos);
