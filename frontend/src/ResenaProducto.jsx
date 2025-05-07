@@ -48,6 +48,13 @@ const ResenaProducto = () => {
     // Cargar reseñas almacenadas
     obtenerResenas();
   }, [productoId, productoInfo]);
+  
+  // Efecto para actualizar las reseñas cuando cambie el ordenamiento
+  useEffect(() => {
+    if (productoId) {
+      obtenerResenas();
+    }
+  }, [ordenamiento]);
 
   // Obtener reseñas
   const obtenerResenas = async () => {
