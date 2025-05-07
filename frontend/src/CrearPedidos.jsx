@@ -5,9 +5,15 @@ import MapaUbicacion from './components/MapaUbicacion';
 
 // Datos de ejemplo - reemplazar con tus productos reales
 const productosEjemplo = [
-  { _id: '1', Nombre: 'Hamburguesa Clásica', Precio: 45 },
-  { _id: '2', Nombre: 'Pizza Mediana', Precio: 80 },
-  { _id: '3', Nombre: 'Ensalada César', Precio: 35 },
+  { _id: '1', Nombre: 'Pizza Margherita', Precio: 12.50 },
+  { _id: '2', Nombre: 'Pizza Pepperoni', Precio: 14 },
+  { _id: '3', Nombre: 'Pizza', Precio: 12.50 },
+  { _id: '4', Nombre: 'Pasta Carbonara', Precio: 11 },
+  { _id: '5', Nombre: 'Pasta al Pesto', Precio: 10.50 },
+  { _id: '6', Nombre: 'Espresso', Precio: 3 },
+  { _id: '7', Nombre: 'Ensalada Caprese', Precio: 8 },
+  { _id: '8', Nombre: 'Tiramisú', Precio: 6.5 },
+  { _id: '9', Nombre: 'Lasaña Tradicional', Precio: 13 },
 ];
 
 const CrearPedidos = () => {
